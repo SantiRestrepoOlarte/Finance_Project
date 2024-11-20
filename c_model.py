@@ -134,9 +134,9 @@ pprint.pprint(svc.get_params())
 # Definición de parametros para optimización
 
 param = {
-    'C': [0.1, 1, 10, 100, 1000],  # Regularización
+    'C': [0.1, 1, 10, 100],  # Regularización
     'kernel': ['linear', 'rbf', 'poly', 'sigmoid'],  # Tipo de kernel
-    'degree': [2, 3, 4, 5, 6],  # Solo aplica para kernel 'poly'
+    'degree': [2, 3, 4],  # Solo aplica para kernel 'poly'
     'gamma': ['scale', 'auto', 0.001, 0.01, 0.1, 1],  # Solo aplica para kernels 'rbf', 'poly' y 'sigmoid'
     'class_weight': [None, 'balanced'],  # Balanceo de clases
     'max_iter': [-1]  # Número máximo de iteraciones (-1 significa sin límite)
@@ -162,22 +162,59 @@ print ("Test - Accuracy :", metrics.accuracy_score(y_test, svc_opt.predict(X_tes
 print ("Test - classification report :", metrics.classification_report(y_test, svc_opt.predict(X_test)))
 
 # Graficar curva ROC
-# Predecir probabilidades
-y_proba = svc_opt.predict_proba(X_test)[:, 1]
 
-# Calcular la curva ROC
-fpr, tpr, thresholds = roc_curve(y_test, y_proba)
-roc_auc = auc(fpr, tpr)
+n_classes = 4
 
-# Graficar la curva ROC
-plt.figure(figsize=(8, 6))
-plt.plot(fpr, tpr, color='blue', lw=2, label=f'ROC curve (AUC = {roc_auc:.2f})')
-plt.plot([0, 1], [0, 1], color='gray', linestyle='--')  # Línea diagonal
-plt.xlabel('False Positive Rate')
-plt.ylabel('True Positive Rate')
-plt.title('Receiver Operating Characteristic (ROC) Curve')
-plt.legend(loc='lower right')
-plt.grid(alpha=0.3)
+# Predicciones de probabilidad
+y_score = svc.predict_proba(X_test)
+
+# Inicializar datos para las curvas ROC
+fpr = dict()
+tpr = dict()
+roc_auc = dict()
+
+# Calcular ROC para cada clase
+for i in range(n_classes):
+    fpr[i], tpr[i], _ = roc_curve(y_test[:, i], y_score[:, i])
+    roc_auc[i] = auc(fpr[i], tpr[i])
+
+# Calcular Macro-average ROC
+# Crear todos los puntos FPR y TPR combinados
+all_fpr = np.unique(np.concatenate([fpr[i] for i in range(n_classes)]))
+
+# Interpolar todas las curvas TPR en los puntos FPR combinados
+mean_tpr = np.zeros_like(all_fpr)
+for i in range(n_classes):
+    mean_tpr += np.interp(all_fpr, fpr[i], tpr[i])
+
+# Promediar los TPR y calcular el AUC
+mean_tpr /= n_classes
+roc_auc["macro"] = auc(all_fpr, mean_tpr)
+
+# Graficar macro-average ROC
+plt.figure(figsize=(10, 8))
+
+# Macro-average
+plt.plot(all_fpr, mean_tpr,
+         label=f'Macro-average ROC (área = {roc_auc["macro"]:0.2f})',
+         color='navy', linestyle='-', linewidth=4)
+
+# Graficar las curvas ROC para cada clase
+colors = ['aqua', 'darkorange', 'cornflowerblue', 'green']
+for i, color in zip(range(n_classes), colors):
+    plt.plot(fpr[i], tpr[i], color=color, lw=2,
+             label=f'ROC clase {i} (área = {roc_auc[i]:0.2f})')
+
+# Línea de referencia (random guessing)
+plt.plot([0, 1], [0, 1], 'k--', lw=2)
+
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('Tasa de Falsos Positivos')
+plt.ylabel('Tasa de Verdaderos Positivos')
+plt.title('Curvas ROC por clase y Macro-average')
+plt.legend(loc="lower right")
+plt.grid()
 plt.show()
 
 
