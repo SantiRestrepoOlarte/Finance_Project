@@ -12,6 +12,7 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+import joblib
 
 ### -----> COLORES
 A1 = '#dc9526'
@@ -76,6 +77,33 @@ promedio_number_of_times_past_due = data_hist.groupby('Risk_Level')['NumberOfTim
 # Agrupar por 'Risk_Level' y calcular el promedio de 'NumberOfOpenCreditLinesAndLoans'
 promedio_number_of_open_credit_lines = data_hist.groupby('Risk_Level')['NumberOfOpenCreditLinesAndLoans'].mean()
 
+#Matriz de correlación 
+
+# Selección de columnas numéricas
+columnas_numericas = [col for col in data_hist.columns if data_hist[col].dtype in ['int64', 'float64']]
+
+# Filtro de DataFrame a las variables numéricas
+df_numerico = data_hist[columnas_numericas]
+
+# Calcular la matriz de correlación
+corrmat = df_numerico.corr()
+
+# Tamaño 
+f, ax = plt.subplots(figsize=(10, 10)) 
+
+# Mapa de calor
+sns.heatmap(corrmat, vmax=.8, square=True, annot=True, annot_kws={"fontsize": 8}, fmt=".2f", cmap='Blues')
+
+# Etiqueta de los ejes
+plt.xticks(rotation=45, ha='right', fontsize=10)
+plt.yticks(rotation=0, fontsize=10)
+
+plt.title('Matriz de Correlación', fontsize=18)
+plt.xlabel('Variables', fontsize=14)
+plt.ylabel('Variables', fontsize=14)
+
+plt.show()
+
 ### -----> Variables numércias
 num_vars = [
     "CreditScore", "DebtRatio", "Assets", "Age", 
@@ -139,21 +167,4 @@ data_dummies = pd.get_dummies(data_hist, columns=cat_vars, drop_first=True)
 
 data_hist.head()
 
-
-# Gráfico porcentaje de no pago
-plt.figure(figsize=(10, 5))  # Tamaño de la figura
-plt.plot(data_hist['ID'].unique(), data_hist['NoPaidPerc'], color='blue', label='Variable Continua')  # Gráfico de línea
-
-# Opciones de personalización
-plt.xlabel('Eje X')  # Etiqueta del eje X
-plt.ylabel('Eje Y')  # Etiqueta del eje Y
-plt.title('Gráfico de Línea para una Variable Continua')  # Título del gráfico
-plt.legend()  # Mostrar leyenda
-plt.grid(True)  # Agregar cuadrícula para mejor visualización
-
-# Mostrar gráfico
-plt.show()
-
-# Usar el método StandardScaler y aplicarlo a los datos seleccionados
-scaler = StandardScaler()
-scaled_data = scaler.fit_transform(data_dummies)
+joblib.dump(data_hist, "salidas/data_hist.pkl")
