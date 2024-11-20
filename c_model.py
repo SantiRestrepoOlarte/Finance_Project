@@ -11,6 +11,8 @@ from sklearn.svm import SVC
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.preprocessing import StandardScaler
 import pprint
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import roc_curve, auc, RocCurveDisplay
 from matplotlib import pyplot as plt
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.model_selection import train_test_split
@@ -23,6 +25,12 @@ data_hist.head()
 
 # Eliminación de variable 'NoPaidPerc'
 data_hist.drop(['NoPaidPerc'], axis=1, inplace=True)
+
+# Guardar la columna ID
+ID = pd.DataFrame(data_hist['ID'])
+
+# Eliminación de variable 'ID'
+data_hist.drop(['ID'], axis=1, inplace=True)
 
 # Variable objetivo Risk_Level a numerical
 data_hist['Risk_Level'] = data_hist['Risk_Level'].map({'Low': 0, 'Medium_Low': 1, 'Medium_High': 2, 'High': 3})
@@ -126,9 +134,9 @@ pprint.pprint(svc.get_params())
 # Definición de parametros para optimización
 
 param = {
-    'C': [0.1, 1, 10, 100],  # Regularización
+    'C': [0.1, 1, 10, 100, 1000],  # Regularización
     'kernel': ['linear', 'rbf', 'poly', 'sigmoid'],  # Tipo de kernel
-    'degree': [2, 3, 4],  # Solo aplica para kernel 'poly'
+    'degree': [2, 3, 4, 5, 6],  # Solo aplica para kernel 'poly'
     'gamma': ['scale', 'auto', 0.001, 0.01, 0.1, 1],  # Solo aplica para kernels 'rbf', 'poly' y 'sigmoid'
     'class_weight': [None, 'balanced'],  # Balanceo de clases
     'max_iter': [-1]  # Número máximo de iteraciones (-1 significa sin límite)
@@ -141,7 +149,9 @@ svc_opt = RandomizedSearchCV(svc, param_distributions=param)
 svc_opt.fit(X_train, y_train)
 
 print('Mejores Hiperparámetros: ', svc_opt.best_params_)
-print('Mejor Score: ', svc_opt.best_score_)
+
+
+######## Modelo elegido: Support Vector Machine Clasifier con hiperparámetros optimizados ########
 
 # Métricas de desempeño modelo con hiperparámetros optimizados
 # ==============================================================================
@@ -152,8 +162,32 @@ print ("Test - Accuracy :", metrics.accuracy_score(y_test, svc_opt.predict(X_tes
 print ("Test - classification report :", metrics.classification_report(y_test, svc_opt.predict(X_test)))
 
 # Graficar curva ROC
+# Predecir probabilidades
+y_proba = svc_opt.predict_proba(X_test)[:, 1]
+
+# Calcular la curva ROC
+fpr, tpr, thresholds = roc_curve(y_test, y_proba)
+roc_auc = auc(fpr, tpr)
+
+# Graficar la curva ROC
+plt.figure(figsize=(8, 6))
+plt.plot(fpr, tpr, color='blue', lw=2, label=f'ROC curve (AUC = {roc_auc:.2f})')
+plt.plot([0, 1], [0, 1], color='gray', linestyle='--')  # Línea diagonal
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver Operating Characteristic (ROC) Curve')
+plt.legend(loc='lower right')
+plt.grid(alpha=0.3)
+plt.show()
+
 
 # Graficar matriz de confusión
+cm = confusion_matrix(y_test, svc_opt.predict(X_test))
+# Visualización de la matriz de confusion
+cm_display = ConfusionMatrixDisplay(confusion_matrix = cm)
+cm_display.plot()
+plt.show()
+
 
 ############# Exportar modelo afinado #############
-svc_opt.save('salidas\\model.keras')
+joblib.dump(svc, 'salidas\\model.pkl')
