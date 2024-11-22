@@ -3,21 +3,8 @@
 import numpy as np
 import pandas as pd
 import joblib
-from sklearn import metrics
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.svm import SVC
-from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.preprocessing import StandardScaler
-import pprint
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
-from sklearn.metrics import roc_curve, auc, RocCurveDisplay
 from matplotlib import pyplot as plt
-from sklearn.model_selection import RandomizedSearchCV
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.compose import ColumnTransformer
 
 # Cargar datos nuevos
 data_new = pd.read_csv('data//datos_nuevos_creditos.csv')
@@ -66,7 +53,7 @@ condiciones = [
 valores = [0.12, 0.18, 0.24, 0.3]  # Valores correspondientes a cada nivel
 
 # Agregar la columna 'tasa'
-predicciones['tasa'] = np.select(condiciones, valores, default=None)
+predicciones['int_rc'] = np.select(condiciones, valores, default=None)
 
 # Eliminar columna 'Risk_Level'
 predicciones.drop(['Risk_Level'], axis=1, inplace=True)

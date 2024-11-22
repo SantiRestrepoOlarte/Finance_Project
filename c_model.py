@@ -18,6 +18,8 @@ from sklearn.model_selection import RandomizedSearchCV
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.compose import ColumnTransformer
+from sklearn.feature_selection import SelectFromModel
+from sklearn.linear_model import Lasso
 
 data_hist = joblib.load('salidas\\data_hist.pkl')
 
@@ -68,6 +70,32 @@ X_test = pd.DataFrame(X_test,columns=X.columns)
 y_train = pd.DataFrame(y_train)
 y_test = pd.DataFrame(y_test)
 X_train.head()
+
+
+'''
+# Selección de variables utilizando SelectFromModel con Lasso
+sel_ = SelectFromModel(Lasso(alpha=0.000025)) #max_features=40)
+sel_.fit(X_train, y_train)
+print(sel_.estimator_.coef_)
+
+#Obtener variables seleccionadas
+var = sel_.get_support()
+
+X_train_SFM = X_train.iloc[:,var]
+X_test_SFM = X_test.iloc[:,var]
+X_train_SFM.head()
+X_train_SFM.columns
+
+# Prueba de selección de variables con SVM
+# Entrenamiento del modelo
+svm = SVC()
+svm.fit(X_train_SFM, y_train)
+
+# Desempeño en el entrenamiento
+y_train_pred = svm.predict(X_train_SFM)
+
+print('Accuracy en el entrenamiento: %.3f'  %accuracy_score(y_train, y_train_pred))
+'''
 
 # Modelo Regresión Logística
 lr = LogisticRegression()
@@ -134,97 +162,44 @@ pprint.pprint(svc.get_params())
 # Definición de parametros para optimización
 
 param = {
-    'C': [0.1, 1, 10, 100],  # Regularización
+    'C': [0.1, 1, 10, 100, 1000],  # Regularización
     'kernel': ['linear', 'rbf', 'poly', 'sigmoid'],  # Tipo de kernel
-    'degree': [2, 3, 4],  # Solo aplica para kernel 'poly'
+    'degree': [2, 3, 4, 5, 6],  # Solo aplica para kernel 'poly'
     'gamma': ['scale', 'auto', 0.001, 0.01, 0.1, 1],  # Solo aplica para kernels 'rbf', 'poly' y 'sigmoid'
     'class_weight': [None, 'balanced'],  # Balanceo de clases
     'max_iter': [-1]  # Número máximo de iteraciones (-1 significa sin límite)
 }
 
-# Definición de cuadricula de búsqueda
-svc_opt = RandomizedSearchCV(svc, param_distributions=param)
+svc_opt = RandomizedSearchCV(svc, param_distributions=param, scoring='accuracy')
+svc_opt.fit(X_train,y_train)
 
-# Iniciar la búsqueda
-svc_opt.fit(X_train, y_train)
+pd.set_option('display.max_colwidth', 100)
+resultados=svc_opt.cv_results_
+svc_opt.best_params_
+pd_resultados=pd.DataFrame(resultados)
 
-print('Mejores Hiperparámetros: ', svc_opt.best_params_)
+pd_resultados[["params","mean_test_score"]].sort_values(by="mean_test_score", ascending=False)
 
-
-######## Modelo elegido: Support Vector Machine Clasifier con hiperparámetros optimizados ########
-
-# Métricas de desempeño modelo con hiperparámetros optimizados
-# ==============================================================================
+# Guardar y probar el mejor modelo
 svc_opt = svc_opt.best_estimator_
 print ("Train - Accuracy :", metrics.accuracy_score(y_train, svc_opt.predict(X_train)))
 print ("Train - classification report :", metrics.classification_report(y_train, svc_opt.predict(X_train)))
 print ("Test - Accuracy :", metrics.accuracy_score(y_test, svc_opt.predict(X_test)))
 print ("Test - classification report :", metrics.classification_report(y_test, svc_opt.predict(X_test)))
 
-# Graficar curva ROC
-
-n_classes = 4
-
-# Predicciones de probabilidad
-y_score = svc.predict_proba(X_test)
-
-# Inicializar datos para las curvas ROC
-fpr = dict()
-tpr = dict()
-roc_auc = dict()
-
-# Calcular ROC para cada clase
-for i in range(n_classes):
-    fpr[i], tpr[i], _ = roc_curve(y_test[:, i], y_score[:, i])
-    roc_auc[i] = auc(fpr[i], tpr[i])
-
-# Calcular Macro-average ROC
-# Crear todos los puntos FPR y TPR combinados
-all_fpr = np.unique(np.concatenate([fpr[i] for i in range(n_classes)]))
-
-# Interpolar todas las curvas TPR en los puntos FPR combinados
-mean_tpr = np.zeros_like(all_fpr)
-for i in range(n_classes):
-    mean_tpr += np.interp(all_fpr, fpr[i], tpr[i])
-
-# Promediar los TPR y calcular el AUC
-mean_tpr /= n_classes
-roc_auc["macro"] = auc(all_fpr, mean_tpr)
-
-# Graficar macro-average ROC
-plt.figure(figsize=(10, 8))
-
-# Macro-average
-plt.plot(all_fpr, mean_tpr,
-         label=f'Macro-average ROC (área = {roc_auc["macro"]:0.2f})',
-         color='navy', linestyle='-', linewidth=4)
-
-# Graficar las curvas ROC para cada clase
-colors = ['aqua', 'darkorange', 'cornflowerblue', 'green']
-for i, color in zip(range(n_classes), colors):
-    plt.plot(fpr[i], tpr[i], color=color, lw=2,
-             label=f'ROC clase {i} (área = {roc_auc[i]:0.2f})')
-
-# Línea de referencia (random guessing)
-plt.plot([0, 1], [0, 1], 'k--', lw=2)
-
-plt.xlim([0.0, 1.0])
-plt.ylim([0.0, 1.05])
-plt.xlabel('Tasa de Falsos Positivos')
-plt.ylabel('Tasa de Verdaderos Positivos')
-plt.title('Curvas ROC por clase y Macro-average')
-plt.legend(loc="lower right")
-plt.grid()
+# Graficar matriz de confusión en train
+cm_train = confusion_matrix(y_train, svc_opt.predict(X_train))
+# Visualización de la matriz de confusion
+cm_display_1 = ConfusionMatrixDisplay(confusion_matrix = cm_train)
+cm_display_1.plot()
 plt.show()
 
-
-# Graficar matriz de confusión
+# Graficar matriz de confusión en test
 cm = confusion_matrix(y_test, svc_opt.predict(X_test))
 # Visualización de la matriz de confusion
 cm_display = ConfusionMatrixDisplay(confusion_matrix = cm)
 cm_display.plot()
 plt.show()
 
-
 ############# Exportar modelo afinado #############
-joblib.dump(svc, 'salidas\\model.pkl')
+joblib.dump(svc_opt, 'salidas\\model.pkl')
